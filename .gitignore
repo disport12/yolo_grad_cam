@@ -1,0 +1,25 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Weights (place yolo11n.pt manually or via Ultralytics)
+*.pt
+*.pth
+
+# Generated outputs — reproduce with pipeline scripts
+cam_results/
+intervention_results/
+metrics_results/
+failure_bank/
+grad_cam/cam_results/
+grad_cam/intervention_results/
+grad_cam/metrics_results/
+grad_cam/failure_bank/
+
+test_images/
+
+.DS_Store
+Thumbs.db

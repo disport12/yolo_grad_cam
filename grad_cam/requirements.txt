@@ -1,0 +1,9 @@
+ultralytics>=8.0
+grad-cam>=1.5
+torch>=2.0
+torchvision
+opencv-python
+numpy
+matplotlib
+pandas
+Pillow
