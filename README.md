@@ -45,6 +45,7 @@ yolo_cam_attribution/
 ├── 03_cam_metrics.py
 ├── 04_intervention.py
 ├── test_images/              # 01 실행 시 생성 (gitignore 권장)
+├── docs/readme_assets/       # README용 예시 이미지 (GradCAM 트랙 스냅샷)
 ├── failure_bank/
 ├── cam_results/
 ├── metrics_results/
@@ -183,6 +184,12 @@ Ultralytics YOLO의 **기본 `02_yolo_cam.py`는 EigenCAM을 기본값**으로 �
 
 즉 “쉬움”은 **모델이 person에 대해 강하게 확신**하고, **너무 작지 않게** 잡혔다는 실험실 규칙상의 정의에 가깝다.
 
+**예시 (`image1219.jpg`, max conf ≈ 0.95, GradCAM 트랙 `grad_cam/02_yolo_cam.py`):**
+
+| 검출 시각화 | GradCAM 오버레이 |
+|-------------|------------------|
+| ![easy_success detection](docs/readme_assets/easy_success_detection.png) | ![easy_success cam](docs/readme_assets/easy_success_cam.png) |
+
 ### 어렵지만 검출은 된 케이스(`hard_success`)
 
 - **신뢰도만 낮을 뿐, 박스는 있다.** 예: `image233`(max 0.32), `image528`(0.38), `image231`(0.48), `image1363`(0.62), `image573`(0.51) 등.
@@ -193,17 +200,33 @@ Ultralytics YOLO의 **기본 `02_yolo_cam.py`는 EigenCAM을 기본값**으로 �
 
 CAM·개입 실험에서는 이들을 **“검출은 되나 불확실”** 그룹으로 묶어, 배경 개입 시 confidence 변화가 큰지 등을 비교하기 좋다.
 
+**예시 (`image233.jpg`, max conf ≈ 0.32, GradCAM):**
+
+| 검출 시각화 | GradCAM 오버레이 |
+|-------------|------------------|
+| ![hard_success detection](docs/readme_assets/hard_success_detection.png) | ![hard_success cam](docs/readme_assets/hard_success_cam.png) |
+
 ### `small_object`로 묶인 이유
 
 - 규칙은 **“검출된 박스 중 하나라도”** 면적/이미지 &lt; **2%** 이면 전체를 `small_object`로 본다.
 - 따라서 **원거리 인원**, **군중 속 작은 머리/상반신**, **부분만 보이는 사람**이 섞인 장면(`image1121` 16개 박스, `image1024` 등)이 여기로 간다.
 - max confidence가 높아도(`image1024` 0.86 등) **최소 면적 비율** 때문에 `easy_success`가 아니다. “검출 품질”과 “난이도(크기)”를 **분리해 태깅**한 것이다.
 
+**예시 (`image1024.jpeg`, 다인·원거리 인물 포함, max conf는 높으나 최소 bbox 면적 비율 &lt; 2%):**
+
+| 검출 시각화 | GradCAM 오버레이 |
+|-------------|------------------|
+| ![small_object detection](docs/readme_assets/small_object_detection.png) | ![small_object cam](docs/readme_assets/small_object_cam.png) |
+
 ### 실패에 가까운 케이스(`missed_detection`)
 
 - 본 CSV에서는 **`image751.jpg` 1건**: person **0건** (임계값 0.25 기준).
 - 라벨 상으로는 “실패”이지만, **진짜 사람이 없을 수도** 있고, **아주 작거나 가려져 임계값을 못 넘긴** 경우일 수도 있다. 헬멧 데이터셋 전제(사람 있을 가능성)는 메모에만 반영되어 있고, **정답 bbox 라벨과의 IoU 검증은 이 파이프라인에 없다**.
 - CAM 파이프라인(`02`)은 검출이 없으면 **해당 이미지를 스킵**하므로, missed는 attribution 분석에서 **공백**이 된다.
+
+**예시 (`image751.jpg`, person 검출 0건 — `01`이 저장한 annotated 시각화, CAM 없음):**
+
+![missed_detection annotated](docs/readme_assets/missed_detection_annotated.jpg)
 
 ### 성공·실패와 CAM 해석을 엮을 때
 
@@ -215,7 +238,7 @@ CAM·개입 실험에서는 이들을 **“검출은 되나 불확실”** 그�
 
 ## GitHub에 올리기
 
-이 디렉터리는 **`.gitignore`** 로 대용량·재현 가능 산출물(`test_images/`, `cam_results/`, `*.pt` 등)을 제외하도록 해 두었다. 저장소에는 **코드와 README**가 중심이 되고, 결과는 스크립트로 재생성한다.
+이 디렉터리는 **`.gitignore`** 로 대용량·재현 가능 산출물(`test_images/`, `cam_results/`, `*.pt` 등)을 제외하도록 해 두었다. 저장소에는 **코드·README·`docs/readme_assets/` 예시 이미지**가 포함되며, 전체 결과는 스크립트로 재생성한다.
 
 ```bash
 cd yolo_cam_attribution
