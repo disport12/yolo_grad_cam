@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -10,16 +10,20 @@ venv/
 *.pth
 
 # Generated outputs — reproduce with pipeline scripts
-cam_results/
+# CAM 원본 결과 (npz, 대량 이미지) 는 제외하되, 시각화 png는 포함
+cam_results/**/*.npz
 intervention_results/
 metrics_results/
-failure_bank/
-grad_cam/cam_results/
+grad_cam/cam_results/**/*.npz
 grad_cam/intervention_results/
 grad_cam/metrics_results/
 grad_cam/failure_bank/
 
 test_images/
+
+# PDF 보고서 (로컬 보관용, 재생성 가능)
+*.pdf
+mdpdf.log
 
 .DS_Store
 Thumbs.db

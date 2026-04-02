@@ -1,0 +1,35 @@
+{
+  "cam_method": "gradcam",
+  "image_name": "image231.jpg",
+  "image_size": [
+    640,
+    640
+  ],
+  "cam_size": [
+    640,
+    640
+  ],
+  "boxes": [
+    {
+      "xyxy": [
+        3,
+        1,
+        631,
+        632
+      ],
+      "xyxy_scaled": [
+        3,
+        1,
+        631,
+        632
+      ],
+      "conf": 0.4817,
+      "cls": "person"
+    }
+  ],
+  "cam_stats": {
+    "mean": 0.29765376448631287,
+    "std": 0.21412940323352814,
+    "max": 0.9999998807907104
+  }
+}

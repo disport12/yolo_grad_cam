@@ -111,13 +111,13 @@ Ultralytics YOLO의 **기본 `02_yolo_cam.py`는 EigenCAM을 기본값**으로 �
 | 요소 | 역할 |
 |------|------|
 | **`YOLOWrapper`** | `DetectionModel.model` 층을 **Ultralytics와 동일한 `m.f` 연결 규칙**으로 순전파하되, **마지막 Detect 모듈은 실행하지 않는다**. 그래프가 헤드 이전에서 끊겨 역전파가 가능해진다. |
-| **`TotalSumTarget`** | 잘린 출력 텐서에 대해 `output.float().sum()` 으로 **스칼라 loss**를 만들어 GradCAM의 `backward` 경로를 통과시킨다. (특정 클래스 “사람” 로짓과 동일하지 않음 — **해석은 부분적**.) |
+| **`TotalSumTarget`** | 잘린 출력 텐서에 대해 `output.float().sum()` 으로 **스칼라 loss**를 만들어 GradCAM의 `backward` 경로를 통과시킨다. (특정 클래스 "사람" 로짓과 동일하지 않음 — **해석은 부분적**.) |
 | **`input_tensor.requires_grad_(True)` + `torch.enable_grad()`** | 입력·파라미터 쪽 그래디언트 경로를 명시적으로 연다. |
 | **타깃 레이어** | 상위와 동일하게 `model.model[-2]` (Detect 직전 블록). |
 
 ### 해석 시 주의
 
-- GradCAM 히트맵은 **“잘린 특징 + 합(sum) loss”** 에 대한 민감도에 가깝다. **실제 person confidence나 박스 회귀에 대한 클래스별 Grad-CAM**과는 다르다.
+- GradCAM 히트맵은 **"잘린 특징 + 합(sum) loss"** 에 대한 민감도에 가깝다. **실제 person confidence나 박스 회귀에 대한 클래스별 Grad-CAM**과는 다르다.
 - 검출 박스는 여전히 **`YOLO.predict()`** 로 얻으며, CAM은 **별도 640×640 입력 경로**로 계산한다(상위 스크립트와 동일한 설계). 레터박스와의 미세 불일치 가능성은 문서화만 해둔다.
 
 ---
@@ -171,68 +171,102 @@ Ultralytics YOLO의 **기본 `02_yolo_cam.py`는 EigenCAM을 기본값**으로 �
 |----------|------|-----------------|---------------------|
 | `easy_success` | 38 | 76% | 사람 검출됨, **max confidence ≥ 0.7**, bbox 최소 면적 비율 ≥ 2% |
 | `hard_success` | 5 | 10% | 검출은 됐으나 **0.25 ≤ max conf < 0.7** |
-| `small_object` | 6 | 12% | 검출은 됐으나 **어떤 bbox든** 이미지 대비 면적 비율 **&lt; 2%** 인 것이 하나라도 있음 |
+| `small_object` | 6 | 12% | 검출은 됐으나 bbox 중 하나라도 이미지 대비 면적 비율 **< 2%** |
 | `missed_detection` | 1 | 2% | person 클래스 **검출 0건** (`conf` 임계값 미만) |
 
 데이터는 **헬멧 2클래스 분류용 현장 이미지**에서 샘플링되었고, 라벨은 **COCO person 검출기(yolo11n)** 관점에서만 자동 판정된다.
 
-### 쉬운 케이스(`easy_success`)가 쉬운 이유
+---
 
-- **신뢰도가 높다.** 대부분 max confidence가 **0.82~0.95** 구간에 몰려 있어, 특징이 “전형적인 사람” 형태로 잡힌 프레임이다.
-- **객체가 프레임에서 충분히 크다.** 규칙상 최소 bbox 면적이 전체의 **2% 이상**이어야 `easy_success`에 들어가므로, **원거리·군집 속 아주 작은 실루엣**은 이 버킷에서 제외된다.
-- **단일·소수 인물**이 큰 비중을 차지한다. 다인 영상(`image1181` 등 10명 검출)에서도 **최고 신뢰도 박스**가 0.7을 넘으면 전체 이미지는 `easy_success`로 분류된다(다만 일부 인원은 낮은 conf의 박스로만 잡힐 수 있음).
+### 1. Easy Success (쉬운 케이스)
 
-즉 “쉬움”은 **모델이 person에 대해 강하게 확신**하고, **너무 작지 않게** 잡혔다는 실험실 규칙상의 정의에 가깝다.
+> `image1219.jpg` — max conf ≈ **0.95**, 단일 인물, 상반신 명확
 
-**예시 (`image1219.jpg`, max conf ≈ 0.95, GradCAM 트랙 `grad_cam/02_yolo_cam.py`):**
+| 검출 결과 | GradCAM 오버레이 |
+|:---------:|:----------------:|
+| ![easy detection](docs/readme_assets/easy_success_detection.png) | ![easy cam](docs/readme_assets/easy_success_cam.png) |
 
-| 검출 시각화 | GradCAM 오버레이 |
-|-------------|------------------|
-| ![easy_success detection](docs/readme_assets/easy_success_detection.png) | ![easy_success cam](docs/readme_assets/easy_success_cam.png) |
+- 대부분 max confidence가 **0.82~0.95** 구간에 몰려 있어, 특징이 "전형적인 사람" 형태로 잡힌 프레임이다.
+- 객체가 프레임에서 충분히 크고(bbox 면적 ≥ 2%), **단일·소수 인물** 중심이다.
+- GradCAM 히트맵이 **인물의 상체·얼굴 주변에 집중**되어 있어, 모델이 어디를 보고 판단했는지가 직관적으로 일치한다.
 
-### 어렵지만 검출은 된 케이스(`hard_success`)
+---
 
-- **신뢰도만 낮을 뿐, 박스는 있다.** 예: `image233`(max 0.32), `image528`(0.38), `image231`(0.48), `image1363`(0.62), `image573`(0.51) 등.
+### 2. Hard Success (어렵지만 검출된 케이스)
+
+> `image233.jpg` — max conf ≈ **0.32**, 현장 작업자, 안전조끼 착용
+
+| 검출 결과 | GradCAM 오버레이 |
+|:---------:|:----------------:|
+| ![hard detection](docs/readme_assets/hard_success_detection.png) | ![hard cam](docs/readme_assets/hard_success_cam.png) |
+
+- 신뢰도만 낮을 뿐 박스는 있다: `image233`(0.32), `image528`(0.38), `image573`(0.51) 등.
+- GradCAM이 **인물 영역 바깥(배경, 장비, 텍스트 등)에까지 넓게 분산**된다. 모델이 확신이 부족해 주변 문맥까지 끌어쓰는 패턴이 시각적으로 확인된다.
 - 해석 후보:
   - **자세·가림·조명**으로 특징이 약해 logits가 불확실한 경우
-  - **박스가 이미지 대부분을 덮는 근접/과대 검출**처럼 맥락이 애매한 경우(`image231`, `image573`처럼 매우 큰 박스와 낮은 conf가 함께 나오는 패턴)
-  - **헬멧·작업복** 등 COCO person 학습 분포와 어긋나 **얼굴·윤곽 신호가 약한** 현장 이미지
+  - **박스가 이미지 대부분을 덮는 근접/과대 검출** — 맥락이 애매한 경우
+  - **헬멧·안전조끼** 등 COCO person 학습 분포와 어긋나 **얼굴·윤곽 신호가 약한** 현장 이미지
 
-CAM·개입 실험에서는 이들을 **“검출은 되나 불확실”** 그룹으로 묶어, 배경 개입 시 confidence 변화가 큰지 등을 비교하기 좋다.
+> `image573.jpg` — max conf ≈ **0.51**, 중복 박스 2개, 가림(occlusion) 발생
 
-**예시 (`image233.jpg`, max conf ≈ 0.32, GradCAM):**
+| 검출 결과 | GradCAM 오버레이 |
+|:---------:|:----------------:|
+| ![hard3 detection](docs/readme_assets/hard_success3_detection.png) | ![hard3 cam](docs/readme_assets/hard_success3_cam.png) |
 
-| 검출 시각화 | GradCAM 오버레이 |
-|-------------|------------------|
-| ![hard_success detection](docs/readme_assets/hard_success_detection.png) | ![hard_success cam](docs/readme_assets/hard_success_cam.png) |
+- 동일 인물에 두 개의 겹치는 박스가 생성되었고, 두 박스 모두 confidence가 0.51 이하로 낮다.
+- GradCAM 역시 활성화가 **인물 주변으로 넓게 퍼져** 있으며, 어깨~가슴 영역에만 약한 핫스팟이 보인다.
 
-### `small_object`로 묶인 이유
+---
 
-- 규칙은 **“검출된 박스 중 하나라도”** 면적/이미지 &lt; **2%** 이면 전체를 `small_object`로 본다.
-- 따라서 **원거리 인원**, **군중 속 작은 머리/상반신**, **부분만 보이는 사람**이 섞인 장면(`image1121` 16개 박스, `image1024` 등)이 여기로 간다.
-- max confidence가 높아도(`image1024` 0.86 등) **최소 면적 비율** 때문에 `easy_success`가 아니다. “검출 품질”과 “난이도(크기)”를 **분리해 태깅**한 것이다.
+### 3. Small Object (작은 객체 케이스)
 
-**예시 (`image1024.jpeg`, 다인·원거리 인물 포함, max conf는 높으나 최소 bbox 면적 비율 &lt; 2%):**
+> `image1024.jpeg` — max conf ≈ **0.86** 이지만, 좌측 끝 작은 bbox 면적 비율 **1.15% < 2%**
 
-| 검출 시각화 | GradCAM 오버레이 |
-|-------------|------------------|
-| ![small_object detection](docs/readme_assets/small_object_detection.png) | ![small_object cam](docs/readme_assets/small_object_cam.png) |
+| 검출 결과 | GradCAM 오버레이 |
+|:---------:|:----------------:|
+| ![small detection](docs/readme_assets/small_object_detection.png) | ![small cam](docs/readme_assets/small_object_cam.png) |
 
-### 실패에 가까운 케이스(`missed_detection`)
+- max confidence가 높아도 **최소 면적 비율** 때문에 `easy_success`가 아니다. "검출 품질"과 "난이도(크기)"를 분리해 태깅한 것이다.
+- GradCAM은 두 명의 큰 작업자에게 집중하되, 화면 좌측 끝의 작은 인물에 대해서는 **활성화가 거의 없다**. 작은 객체는 feature map 해상도 상 CAM으로 설명이 어려운 한계를 보여준다.
 
-- 본 CSV에서는 **`image751.jpg` 1건**: person **0건** (임계값 0.25 기준).
-- 라벨 상으로는 “실패”이지만, **진짜 사람이 없을 수도** 있고, **아주 작거나 가려져 임계값을 못 넘긴** 경우일 수도 있다. 헬멧 데이터셋 전제(사람 있을 가능성)는 메모에만 반영되어 있고, **정답 bbox 라벨과의 IoU 검증은 이 파이프라인에 없다**.
-- CAM 파이프라인(`02`)은 검출이 없으면 **해당 이미지를 스킵**하므로, missed는 attribution 분석에서 **공백**이 된다.
+> `image1121.jpg` — **16명** 군중, 다수 bbox가 이미지 대비 면적 < 2%
 
-**예시 (`image751.jpg`, person 검출 0건 — `01`이 저장한 annotated 시각화, CAM 없음):**
+| 검출 결과 | GradCAM 오버레이 |
+|:---------:|:----------------:|
+| ![small2 detection](docs/readme_assets/small_object2_detection.png) | ![small2 cam](docs/readme_assets/small_object2_cam.png) |
 
-![missed_detection annotated](docs/readme_assets/missed_detection_annotated.jpg)
+- 16명이 밀집된 군중 장면에서 개별 bbox는 작지만, GradCAM은 **군중 전체를 하나의 클러스터**로 인식하는 경향이 보인다.
+- 개별 인물에 대한 세밀한 attribution 분리는 이루어지지 않으며, 이는 Feature-level CAM의 해상도 한계이다.
 
-### 성공·실패와 CAM 해석을 엮을 때
+---
 
-- **`easy_success`**: CAM이 bbox 안에 몰리면 “설명이 검출과 정합”에 가깝게 읽기 쉽다. 다만 EigenCAM/GradCAM 모두 **검출 loss와 1:1 대응은 아님**.
-- **`hard_success` / `small_object`**: 낮은 conf·작은 박스는 **배경·주변 물체에 반응**할 여지가 커서, M1(Inside Ratio)·개입 실험(M3)과 함께 보는 것이 합리적이다.
-- **`missed_detection`**: 설명 맵을 만들 수 없으므로, **한계 사례**로 남기고 데이터 보강·임계값·특화 학습을 논의하는 용도가 맞다.
+### 4. Missed Detection (검출 실패 케이스)
+
+> `image751.jpg` — person 검출 **0건** (conf 0.25 임계값 미달)
+
+| 원본 + 라벨 (검출 없음) |
+|:-----------------------:|
+| ![missed](docs/readme_assets/missed_detection_annotated.jpg) |
+
+- **사람이 분명히 존재하지만 YOLO가 검출하지 못한 실패 사례**이다.
+- 실패 원인 분석:
+  - **복잡한 배경 구조물**: 송전탑의 격자 구조가 인물의 윤곽선과 겹쳐, backbone이 사람 특징을 추출하기 어려웠을 수 있다.
+  - **산업 장비와의 혼동**: 안전조끼·하네스 등 장비가 인물 실루엣을 비전형적으로 만들어, COCO 학습 분포와 거리가 발생했을 가능성이 있다.
+  - **측면 자세**: 인물이 정면이 아닌 측면을 향하고 있어 얼굴/상체 특징이 약화되었다.
+- CAM 파이프라인(`02`)은 검출이 없으면 해당 이미지를 **스킵**하므로, attribution 분석에서 **공백**이 된다. 이런 사례에서는 전체 이미지에 대한 전역 CAM을 별도로 생성해야 "왜 못 찾았는가"를 분석할 수 있으며, 이는 현재 프레임워크의 한계이다.
+
+---
+
+### 5. 성공·실패와 CAM 해석 종합
+
+| 카테고리 | CAM 해석 특성 | 개입 실험 활용 |
+|----------|---------------|---------------|
+| **easy_success** | CAM이 bbox 내부에 집중 → "설명과 검출이 정합" | baseline 비교군 |
+| **hard_success** | CAM이 bbox 외부로 분산 → 배경 의존 패턴 | 배경 blur 시 conf 변화(M3)가 큰지 검증 |
+| **small_object** | 작은 bbox에 대한 CAM 해상도 부족 | Inside Ratio(M1)가 낮을 것으로 예상 |
+| **missed_detection** | CAM 생성 불가 (검출 자체가 없음) | 한계 사례, 데이터 보강·임계값·특화 학습 논의용 |
+
+> **핵심 관찰**: confidence가 낮아질수록 GradCAM 활성화가 인물 바깥으로 퍼지는 경향이 명확하다. 이는 모델이 확신이 부족할 때 **주변 환경적 맥락(Context)**에 더 의존한다는 해석을 뒷받침한다.
 
 ---
 
